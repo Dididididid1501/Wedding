@@ -1,4 +1,4 @@
-// --- Инициализация Supabase (без дублирования) ---
+
 let supabase = null;
 try {
     if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined' && window.supabase) {
