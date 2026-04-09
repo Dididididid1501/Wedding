@@ -87,3 +87,158 @@ svg { width: 100%; height: 100%; transform: rotate(-90deg); }
 .modal-buttons button { flex: 1; padding: 12px; border-radius: 40px; }
 .btn-primary { background: var(--accent); color: white; }
 .btn-secondary { background: rgba(0,0,0,0.1); color: var(--text-primary); }
+/* Плавающая кнопка */
+.floating-consult {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    width: 56px;
+    height: 56px;
+    border-radius: 28px;
+    background: var(--accent);
+    color: white;
+    font-size: 28px;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    cursor: pointer;
+    z-index: 150;
+    transition: transform 0.2s;
+}
+.floating-consult:active { transform: scale(0.95); }
+
+/* Кнопка "Сегодня нужно сделать" */
+.today-task-btn {
+    background: var(--card-bg);
+    border-radius: 40px;
+    padding: 10px 16px;
+    margin: 16px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--card-border);
+}
+.red-dot {
+    color: red;
+    font-size: 20px;
+    margin-left: 8px;
+    animation: pulse 1s infinite;
+}
+@keyframes pulse {
+    0% { opacity: 0.4; transform: scale(0.8);}
+    100% { opacity: 1; transform: scale(1.2);}
+}
+
+/* Анимация чекбокса "пружинка" */
+.agency-check, .task-check, .task-check-cat {
+    transition: transform 0.1s cubic-bezier(0.34, 1.2, 0.64, 1);
+}
+.agency-check:active, .task-check:active, .task-check-cat:active {
+    transform: scale(1.2);
+}
+
+/* Stagger анимация для карточек */
+.card, .category, .today-task-btn {
+    animation: fadeUp 0.4s ease-out forwards;
+    opacity: 0;
+}
+.card:nth-child(1) { animation-delay: 0.05s; }
+.card:nth-child(2) { animation-delay: 0.1s; }
+.card:nth-child(3) { animation-delay: 0.15s; }
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Слайд переход между экранами */
+.screen {
+    transition: transform 0.3s ease, opacity 0.2s;
+}
+.screen.active {
+    display: block;
+    animation: slideIn 0.3s forwards;
+}
+@keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+/* Бюджет */
+.budget-input {
+    width: 100%;
+    padding: 12px;
+    font-size: 18px;
+    margin: 12px 0;
+    border-radius: 12px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+}
+#budgetCategories {
+    margin-top: 20px;
+}
+.category-slider {
+    margin-bottom: 16px;
+}
+.category-slider label {
+    display: flex;
+    justify-content: space-between;
+}
+input[type="range"] {
+    width: 100%;
+    margin: 8px 0;
+}
+
+/* Гости */
+.guests-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.guest-card {
+    background: var(--card-bg);
+    border-radius: 20px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--card-border);
+    transition: transform 0.1s;
+}
+.guest-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 24px;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 20px;
+}
+.guest-info {
+    flex: 1;
+}
+.guest-name {
+    font-weight: 600;
+}
+.guest-status {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 20px;
+    background: rgba(0,0,0,0.05);
+}
+.status-confirmed { background: #2BA84A; color: white; }
+.status-declined { background: #E53E3E; color: white; }
+.status-pending { background: #F7B32B; color: white; }
+.export-btn, .save-btn, .add-guest-btn, .add-task-btn {
+    background: var(--accent);
+    color: white;
+    padding: 12px;
+    border-radius: 40px;
+    width: 100%;
+    margin-top: 12px;
+    font-weight: 600;
+}

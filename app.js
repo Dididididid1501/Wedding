@@ -1,419 +1,223 @@
-// app.js
-// === ИНИЦИАЛИЗАЦИЯ ===
+// app.js (обновлённая версия)
 console.log('app.js загружен');
 
-// Переменная для клиента Supabase (будет определена позже)
 let supabaseClient = null;
-
-// Инициализация Supabase, если доступен
 if (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined' && window.supabase) {
-    try {
-        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log('Supabase клиент создан');
-    } catch (e) {
-        console.error('Ошибка создания клиента Supabase:', e);
-    }
-} else {
-    console.warn('Supabase не доступен, работаем в офлайн-режиме');
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-// === Telegram WebApp ===
 let tg = window.Telegram?.WebApp;
-let userId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : 'demo_user_' + Date.now();
+if (tg) tg.ready();
+
+// Безопасное получение user_id (пока упрощённо, потом через Edge Function)
+let userId = tg?.initDataUnsafe?.user?.id ? String(tg.initDataUnsafe.user.id) : 'demo_' + Date.now();
 let userName = tg?.initDataUnsafe?.user?.first_name || 'Екатерина';
 
-if (tg) tg.ready(); // Сообщаем Telegram, что приложение загружено
-
-// === Глобальные данные ===
-let targetDate = new Date(2025, 7, 15, 0, 0, 0); // 15 августа 2025
+// Глобальные переменные
+let targetDate = new Date(2025, 7, 15, 0, 0, 0);
 let timerInterval = null;
+let budgetChart = null;
 
-// === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+// --- Вспомогательные функции (прогресс, таймер и т.д.) ---
+function setProgress(percent) { /* ... как в вашем коде ... */ }
+function updateProgressFromTasks() { /* ... */ }
+function updateCategoryProgress() { /* ... */ }
+function updateCompactTimer() { /* ... */ }
+function startTimer() { /* ... */ }
+async function updateWeddingDate(newDate) { /* ... */ }
 
-// Обновление кругового прогресса
-function setProgress(percent) {
-    const circle = document.querySelector('.progress-ring-circle');
-    if (circle) {
-        const radius = 63;
-        const circumference = 2 * Math.PI * radius;
-        const offset = circumference - (percent / 100) * circumference;
-        circle.style.strokeDashoffset = offset;
-    }
-    const percentNumber = document.getElementById('percentNumber');
-    if (percentNumber) percentNumber.innerText = percent;
-}
-
-// Подсчёт прогресса по всем чекбоксам
-function updateProgressFromTasks() {
-    const allChecks = document.querySelectorAll('.agency-check, .task-check, .task-check-cat');
-    let total = allChecks.length;
-    let done = 0;
-    allChecks.forEach(ch => {
-        if (ch.classList.contains('checked')) done++;
-    });
-    let percent = total === 0 ? 0 : Math.round((done / total) * 100);
-    setProgress(percent);
-    
-    // Сохраняем в Supabase, если он есть
-    if (supabaseClient) {
-        supabaseClient
-            .from('users')
-            .update({ progress_percent: percent })
-            .eq('user_id', userId)
-            .then(({ error }) => {
-                if (error) console.error('Ошибка обновления прогресса в БД:', error);
-            });
-    }
-}
-
-// Обновление прогресса по категориям (чек-лист)
-function updateCategoryProgress() {
-    // Категория "Площадка"
-    const venueTasks = document.querySelectorAll('.task-check-cat[data-cat="venue"]');
-    let venueDone = 0;
-    venueTasks.forEach(t => { if (t.classList.contains('checked')) venueDone++; });
-    const catVenue = document.getElementById('catVenueProgress');
-    if (catVenue) catVenue.innerText = `${venueDone}/${venueTasks.length}`;
-    
-    // Категория "Подрядчики"
-    const vendorsTasks = document.querySelectorAll('.task-check-cat[data-cat="vendors"]');
-    let vendorsDone = 0;
-    vendorsTasks.forEach(t => { if (t.classList.contains('checked')) vendorsDone++; });
-    const catVendors = document.getElementById('catVendorsProgress');
-    if (catVendors) catVendors.innerText = `${vendorsDone}/${vendorsTasks.length}`;
-}
-
-// === РАБОТА С SUPABASE ===
-async function updateUserTask(taskName, isDone) {
-    if (!supabaseClient) return;
-    const { error } = await supabaseClient
-        .from('user_tasks')
-        .upsert(
-            { user_id: userId, task_name: taskName, is_done: isDone, updated_at: new Date() },
-            { onConflict: 'user_id, task_name' }
-        );
-    if (error) console.error('Ошибка upsert user_tasks:', error);
-}
-
-async function updateWeddingDate(newDate) {
-    if (!supabaseClient) return;
-    const { error } = await supabaseClient
-        .from('users')
-        .update({ wedding_date: newDate.toISOString() })
-        .eq('user_id', userId);
-    if (error) console.error('Ошибка обновления даты:', error);
-}
-
+// --- Загрузка данных пользователя (расширенная) ---
 async function loadUserData() {
-    if (!supabaseClient) {
-        console.warn('Supabase не инициализирован, загружаем локальные данные');
-        startTimer();
-        return;
+    if (!supabaseClient) return;
+    // Загрузка бюджета
+    let { data: budgetData } = await supabaseClient.from('budget').select('*').eq('user_id', userId).single();
+    if (budgetData) {
+        document.getElementById('totalBudget').value = budgetData.total_budget;
+        renderBudgetCategories(budgetData.categories);
+        updateBudgetChart(budgetData.categories);
+    } else {
+        // создать запись по умолчанию
+        await supabaseClient.from('budget').insert([{ user_id: userId, total_budget: 500000 }]);
     }
-    
-    try {
-        // Получаем пользователя
-        let { data: user, error: userError } = await supabaseClient
-            .from('users')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
-        
-        if (userError && userError.code !== 'PGRST116') {
-            console.error('Ошибка загрузки пользователя:', userError);
-        }
-        
-        if (!user) {
-            // Создаём нового пользователя
-            const { error: insertError } = await supabaseClient
-                .from('users')
-                .insert([{ user_id: userId, full_name: userName, wedding_date: targetDate.toISOString() }]);
-            if (insertError) console.error('Ошибка создания пользователя:', insertError);
-        } else {
-            if (user.wedding_date) {
-                targetDate = new Date(user.wedding_date);
-                const displayDate = targetDate.toLocaleDateString('ru-RU');
-                const weddingSpan = document.getElementById('weddingDateDisplay');
-                if (weddingSpan) weddingSpan.innerText = displayDate;
-                startTimer();
-            }
-        }
-        
-        // Загружаем задачи пользователя
-        let { data: tasks, error: tasksErr } = await supabaseClient
-            .from('user_tasks')
-            .select('task_name, is_done')
-            .eq('user_id', userId);
-        
-        if (!tasksErr && tasks) {
-            tasks.forEach(t => {
-                let check = document.querySelector(
-                    `.agency-check[data-task="${t.task_name}"], .task-check[data-task="${t.task_name}"], .task-check-cat[data-task="${t.task_name}"]`
-                );
-                if (check) {
-                    if (t.is_done) check.classList.add('checked');
-                    else check.classList.remove('checked');
-                }
-                // Для чек-листа с категориями добавим зачёркивание текста
-                if (check && check.classList.contains('task-check-cat')) {
-                    let parentRow = check.closest('.task-row');
-                    if (parentRow) {
-                        let textSpan = parentRow.querySelector('.task-text-cat');
-                        if (textSpan) {
-                            if (t.is_done) textSpan.classList.add('done');
-                            else textSpan.classList.remove('done');
-                        }
-                    }
-                }
-            });
-        }
-    } catch (e) {
-        console.error('Ошибка в loadUserData:', e);
-    }
-    
-    updateProgressFromTasks();
-    updateCategoryProgress();
+    // Загрузка гостей
+    let { data: guests } = await supabaseClient.from('guests').select('*').eq('user_id', userId);
+    renderGuests(guests);
+    // Загрузка задач с дедлайнами
+    let { data: tasks } = await supabaseClient.from('user_tasks').select('*').eq('user_id', userId);
+    updateRedDot(tasks);
 }
 
-// === ТАЙМЕР ===
-function updateCompactTimer() {
-    const now = new Date();
-    const diff = targetDate - now;
-    const timerSpan = document.getElementById('compactTimer');
-    if (!timerSpan) return;
-    if (diff <= 0) {
-        timerSpan.innerText = 'свадьба прошла';
-        if (timerInterval) clearInterval(timerInterval);
-        return;
+// --- Бюджет ---
+function renderBudgetCategories(categories) {
+    const container = document.getElementById('budgetCategories');
+    container.innerHTML = '';
+    for (let [cat, val] of Object.entries(categories)) {
+        const div = document.createElement('div');
+        div.className = 'category-slider';
+        div.innerHTML = `
+            <label>${cat} <span id="${cat}Val">${val}</span> ₽</label>
+            <input type="range" data-cat="${cat}" min="0" max="500000" value="${val}" step="1000">
+        `;
+        container.appendChild(div);
     }
-    const days = Math.floor(diff / (1000*60*60*24));
-    const hours = Math.floor((diff % 86400000) / 3600000);
-    const minutes = Math.floor((diff % 3600000) / 60000);
-    timerSpan.innerText = `${days} д ${hours} ч ${minutes} мин`;
-}
-
-function startTimer() {
-    if (timerInterval) clearInterval(timerInterval);
-    updateCompactTimer();
-    timerInterval = setInterval(updateCompactTimer, 60000);
-}
-
-async function editWeddingDate() {
-    let newDateStr = prompt("Введите новую дату свадьбы в формате ДД.ММ.ГГГГ", "15.08.2025");
-    if (!newDateStr) return;
-    let parts = newDateStr.split('.');
-    if (parts.length !== 3) {
-        alert("Неверный формат. Используйте ДД.ММ.ГГГГ");
-        return;
-    }
-    let day = parseInt(parts[0], 10);
-    let month = parseInt(parts[1], 10) - 1;
-    let year = parseInt(parts[2], 10);
-    let newDate = new Date(year, month, day, 0, 0, 0);
-    if (isNaN(newDate.getTime())) {
-        alert("Некорректная дата");
-        return;
-    }
-    if (newDate < new Date()) {
-        alert("Дата не может быть в прошлом. Введите будущую дату.");
-        return;
-    }
-    targetDate = newDate;
-    const weddingSpan = document.getElementById('weddingDateDisplay');
-    if (weddingSpan) weddingSpan.innerText = newDateStr;
-    await updateWeddingDate(targetDate);
-    startTimer();
-}
-
-// === ОБРАБОТЧИКИ ЧЕКБОКСОВ ===
-async function handleCheckboxClick(e) {
-    const cb = e.currentTarget;
-    const taskName = cb.dataset.task;
-    if (!taskName) return;
-    const newState = !cb.classList.contains('checked');
-    if (newState) cb.classList.add('checked');
-    else cb.classList.remove('checked');
-    
-    await updateUserTask(taskName, newState);
-    
-    // Если это чекбокс в чек-листе с категорией, обновляем зачёркивание текста
-    if (cb.classList.contains('task-check-cat')) {
-        const parentRow = cb.closest('.task-row');
-        if (parentRow) {
-            const textSpan = parentRow.querySelector('.task-text-cat');
-            if (textSpan) {
-                if (newState) textSpan.classList.add('done');
-                else textSpan.classList.remove('done');
-            }
-        }
-    }
-    
-    updateProgressFromTasks();
-    updateCategoryProgress();
-}
-
-function bindAllCheckboxes() {
-    const checkboxes = document.querySelectorAll('.agency-check, .task-check, .task-check-cat');
-    checkboxes.forEach(cb => {
-        cb.removeEventListener('click', handleCheckboxClick);
-        cb.addEventListener('click', handleCheckboxClick);
-    });
-}
-
-// === ТЕМА (сохранение в localStorage) ===
-function initTheme() {
-    const savedTheme = localStorage.getItem('wedding_theme') || 'modern';
-    document.body.className = `theme-${savedTheme}`;
-    // Визуально выделяем активную точку
-    document.querySelectorAll('.theme-dot').forEach(dot => {
-        if (dot.dataset.theme === savedTheme) {
-            dot.style.transform = 'scale(1.1)';
-        } else {
-            dot.style.transform = 'scale(1)';
-        }
-    });
-}
-
-// === ИНИЦИАЛИЗАЦИЯ ПРИ ЗАГРУЗКЕ DOM ===
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('DOM загружен, инициализация...');
-    
-    // 1. Применяем сохранённую тему
-    initTheme();
-    
-    // 2. Заполняем имя и аватар
-    const userNameSpan = document.getElementById('userName');
-    const userAvatarSpan = document.getElementById('userAvatar');
-    if (userNameSpan) userNameSpan.innerText = userName;
-    if (userAvatarSpan) userAvatarSpan.innerText = userName.charAt(0);
-    
-    // 3. Кнопка изменения даты
-    const editBtn = document.getElementById('editDateBtn');
-    if (editBtn) editBtn.addEventListener('click', editWeddingDate);
-    
-    // 4. Привязываем чекбоксы
-    bindAllCheckboxes();
-    
-    // 5. Загружаем данные из Supabase (если доступен)
-    await loadUserData();
-    
-    // 6. Запускаем таймер
-    startTimer();
-    
-    // 7. Переключение между "Что делает агентство" / "Мои задачи"
-    const toggleBtns = document.querySelectorAll('.toggle-option');
-    const agencyDiv = document.getElementById('agencyBlock');
-    const tasksDiv = document.getElementById('tasksBlock');
-    if (toggleBtns.length && agencyDiv && tasksDiv) {
-        toggleBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const target = btn.dataset.toggle;
-                if ((target === 'agency' && !agencyDiv.classList.contains('hidden')) ||
-                    (target === 'tasks' && !tasksDiv.classList.contains('hidden'))) return;
-                toggleBtns.forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                if (target === 'agency') {
-                    agencyDiv.classList.remove('hidden');
-                    tasksDiv.classList.add('hidden');
-                } else {
-                    agencyDiv.classList.add('hidden');
-                    tasksDiv.classList.remove('hidden');
-                }
-            });
+    document.querySelectorAll('#budgetCategories input').forEach(slider => {
+        slider.addEventListener('input', (e) => {
+            const cat = e.target.dataset.cat;
+            const val = parseInt(e.target.value);
+            document.getElementById(`${cat}Val`).innerText = val;
+            let current = getCurrentBudgetCategories();
+            current[cat] = val;
+            updateBudgetChart(current);
         });
-    }
-    
-    // 8. Раскрытие категорий в чек-листе
-    document.querySelectorAll('.category').forEach(cat => {
-        const header = cat.querySelector('.category-header');
-        if (header) {
-            header.addEventListener('click', () => cat.classList.toggle('open'));
-        }
     });
-    
-    // 9. Переключение вкладок (Главная / Чек-лист)
+}
+function getCurrentBudgetCategories() {
+    let cats = {};
+    document.querySelectorAll('#budgetCategories input').forEach(inp => {
+        cats[inp.dataset.cat] = parseInt(inp.value);
+    });
+    return cats;
+}
+function updateBudgetChart(categories) {
+    const ctx = document.getElementById('budgetChart').getContext('2d');
+    if (budgetChart) budgetChart.destroy();
+    budgetChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(categories),
+            datasets: [{ data: Object.values(categories), backgroundColor: ['#FFB347','#FF6B6B','#4D9DE0','#B794F4','#2BAE66','#F7B32B'] }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
+    });
+}
+async function saveBudget() {
+    const total = parseInt(document.getElementById('totalBudget').value);
+    const categories = getCurrentBudgetCategories();
+    await supabaseClient.from('budget').upsert({ user_id: userId, total_budget: total, categories });
+    alert('Бюджет сохранён');
+}
+
+// --- Гости ---
+function renderGuests(guests) {
+    const container = document.getElementById('guestsList');
+    container.innerHTML = '';
+    guests.forEach(guest => {
+        const card = document.createElement('div');
+        card.className = 'guest-card';
+        card.setAttribute('data-id', guest.id);
+        card.innerHTML = `
+            <div class="guest-avatar">${guest.name.charAt(0)}</div>
+            <div class="guest-info">
+                <div class="guest-name">${guest.name}</div>
+                <div class="guest-phone">${guest.phone || ''}</div>
+            </div>
+            <div class="guest-status status-${guest.status}">${guest.status === 'confirmed' ? '✅' : guest.status === 'declined' ? '❌' : '⏳'}</div>
+        `;
+        container.appendChild(card);
+        // Свайп через Hammer.js
+        const hammer = new Hammer(card);
+        hammer.on('swipeleft', () => changeGuestStatus(guest.id, 'confirmed'));
+        hammer.on('swiperight', () => changeGuestStatus(guest.id, 'declined'));
+    });
+}
+async function changeGuestStatus(id, newStatus) {
+    await supabaseClient.from('guests').update({ status: newStatus }).eq('id', id);
+    loadUserData(); // перезагрузка
+}
+async function addGuest(name, phone, category) {
+    await supabaseClient.from('guests').insert([{ user_id: userId, name, phone, category, status: 'pending' }]);
+    loadUserData();
+}
+
+// --- Red Dot (задачи на сегодня) ---
+function updateRedDot(tasks) {
+    const today = new Date().toISOString().slice(0,10);
+    const hasTodayTask = tasks.some(t => t.deadline === today && !t.is_done);
+    const redDot = document.getElementById('todayRedDot');
+    if (redDot) redDot.style.display = hasTodayTask ? 'inline-block' : 'none';
+}
+async function showTodayTasks() {
+    let { data: tasks } = await supabaseClient.from('user_tasks').select('*').eq('user_id', userId);
+    const today = new Date().toISOString().slice(0,10);
+    const todayTasks = tasks.filter(t => t.deadline === today && !t.is_done);
+    if (todayTasks.length === 0) {
+        alert('На сегодня нет задач!');
+        return;
+    }
+    let msg = '📋 Задачи на сегодня:\n';
+    todayTasks.forEach(t => msg += `- ${t.task_name}\n`);
+    alert(msg);
+}
+
+// --- Обработчики чекбоксов (с учётом дедлайнов) ---
+async function handleCheckboxClick(e) { /* ваш код с обновлением is_done и сохранением в user_tasks */ }
+function bindAllCheckboxes() { /* ... */ }
+
+// --- Инициализация DOM ---
+document.addEventListener('DOMContentLoaded', async () => {
+    // Инициализация темы, имени, кнопок и т.д.
+    initTheme();
+    document.getElementById('userName').innerText = userName;
+    document.getElementById('userAvatar').innerText = userName.charAt(0);
+    document.getElementById('editDateBtn').addEventListener('click', editWeddingDate);
+    bindAllCheckboxes();
+    await loadUserData();
+    startTimer();
+
+    // Переключение вкладок
     const screens = {
         dashboard: document.getElementById('dashboard'),
-        checklist: document.getElementById('checklistScreen')
+        checklist: document.getElementById('checklistScreen'),
+        budget: document.getElementById('budgetScreen'),
+        guests: document.getElementById('guestsScreen')
     };
     document.querySelectorAll('.tab-item').forEach(btn => {
         btn.addEventListener('click', () => {
             const tab = btn.dataset.tab;
-            if (tab === 'checklist') {
-                if (screens.dashboard) screens.dashboard.classList.remove('active');
-                if (screens.checklist) screens.checklist.classList.add('active');
-            } else if (tab === 'dashboard') {
-                if (screens.checklist) screens.checklist.classList.remove('active');
-                if (screens.dashboard) screens.dashboard.classList.add('active');
-            }
+            Object.keys(screens).forEach(s => screens[s].classList.remove('active'));
+            if (screens[tab]) screens[tab].classList.add('active');
             document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
         });
     });
-    
-    // 10. Модальное окно консультации
+
+    // Плавающая кнопка консультации
+    const floatingBtn = document.getElementById('floatingConsultBtn');
     const modal = document.getElementById('consultModal');
-    const consultBtn = document.getElementById('consultBtn');
-    const modalClose = document.getElementById('modalClose');
-    const modalSubmit = document.getElementById('modalSubmit');
-    
-    if (consultBtn && modal) {
-        consultBtn.addEventListener('click', () => modal.classList.add('active'));
-    }
-    if (modalClose && modal) {
-        modalClose.addEventListener('click', () => modal.classList.remove('active'));
-    }
-    if (modal) {
-        modal.addEventListener('click', (e) => {
-            if (e.target === modal) modal.classList.remove('active');
-        });
-    }
-    if (modalSubmit) {
-        modalSubmit.addEventListener('click', async () => {
-            const name = document.getElementById('consultName').value.trim();
-            const phone = document.getElementById('consultPhone').value.trim();
-            const datetime = document.getElementById('consultDatetime').value;
-            if (!name || !phone) {
-                alert('Пожалуйста, укажите имя и телефон.');
-                return;
-            }
-            if (!supabaseClient) {
-                alert('Сервис временно недоступен. Попробуйте позже.');
-                return;
-            }
-            const { error } = await supabaseClient
-                .from('consultations')
-                .insert([{
-                    user_id: userId,
-                    name: name,
-                    phone: phone,
-                    preferred_date: datetime ? new Date(datetime).toISOString() : null,
-                    status: 'new'
-                }]);
-            if (error) {
-                console.error(error);
-                alert('Ошибка при отправке. Попробуйте позже.');
-            } else {
-                alert('Спасибо! Ваша заявка принята. Координатор свяжется с вами.');
-                modal.classList.remove('active');
-                document.getElementById('consultName').value = '';
-                document.getElementById('consultPhone').value = '';
-                document.getElementById('consultDatetime').value = '';
-            }
-        });
-    }
-    
-    // 11. Переключение цветовых тем (с сохранением)
-    document.querySelectorAll('.theme-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-            const theme = dot.dataset.theme;
-            document.body.className = `theme-${theme}`;
-            localStorage.setItem('wedding_theme', theme);
-            // Визуальный фидбек
-            document.querySelectorAll('.theme-dot').forEach(d => d.style.transform = 'scale(1)');
-            dot.style.transform = 'scale(1.1)';
-        });
+    floatingBtn.onclick = () => modal.classList.add('active');
+    // ... закрытие модалки как в вашем коде ...
+
+    // Бюджет
+    document.getElementById('saveBudgetBtn').addEventListener('click', saveBudget);
+    // Гости
+    document.getElementById('addGuestBtn').addEventListener('click', () => document.getElementById('guestModal').classList.add('active'));
+    document.getElementById('saveGuestBtn').addEventListener('click', async () => {
+        const name = document.getElementById('guestName').value;
+        const phone = document.getElementById('guestPhone').value;
+        const category = document.getElementById('guestCategory').value;
+        if (name) await addGuest(name, phone, category);
+        document.getElementById('guestModal').classList.remove('active');
     });
-    
-    console.log('Инициализация завершена');
+    document.getElementById('exportGuestsBtn').addEventListener('click', () => {
+        alert('Экспорт CSV/PDF будет реализован в следующей версии');
+    });
+
+    // Сегодняшние задачи
+    document.getElementById('todayTaskBtn').addEventListener('click', showTodayTasks);
+
+    // Добавление своей задачи
+    document.getElementById('addCustomTaskBtn').addEventListener('click', () => document.getElementById('taskModal').classList.add('active'));
+    document.getElementById('saveTaskBtn').addEventListener('click', async () => {
+        const taskName = document.getElementById('newTaskName').value;
+        const deadline = document.getElementById('newTaskDeadline').value;
+        if (taskName) {
+            await supabaseClient.from('user_tasks').upsert({ user_id: userId, task_name: taskName, deadline, is_done: false });
+            location.reload(); // или обновить список задач
+        }
+        document.getElementById('taskModal').classList.remove('active');
+    });
+    // Закрытие модалок
+    document.querySelectorAll('.modal .btn-secondary, .modal .modal-close').forEach(btn => {
+        btn.addEventListener('click', () => btn.closest('.modal').classList.remove('active'));
+    });
 });
