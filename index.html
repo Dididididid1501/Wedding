@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+
+    <title>Свадебное агентство</title>
+    <link rel="stylesheet" href="style.css">
+     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+     <script src="config.js"></script>
+    <script src="app.js" defer></script>
+</head>
+<body class="theme-modern">
+
+<!-- ГЛАВНЫЙ ЭКРАН -->
+<div id="dashboard" class="screen active">
+    <div class="header">
+        <div class="greeting"><h1>Привет, <span id="userName">Екатерина</span></h1><p>ваш координатор на связи</p></div>
+        <div class="avatar" id="userAvatar">Е</div>
+    </div>
+    <div class="progress-ring-container">
+        <div class="progress-ring">
+            <svg viewBox="0 0 140 140">
+                <circle class="progress-ring-circle-bg" cx="70" cy="70" r="63"></circle>
+                <circle class="progress-ring-circle" cx="70" cy="70" r="63" stroke-dashoffset="395.8"></circle>
+            </svg>
+            <div class="percent-text"><div class="percent-number" id="percentNumber">0</div><div class="percent-label">готово</div></div>
+        </div>
+    </div>
+    <div class="date-timer-card">
+        <div class="wedding-date"><span>дата свадьбы</span><span class="date" id="weddingDateDisplay">15 августа 2025</span></div>
+        <div class="compact-timer" id="compactTimer"></div>
+        <div class="edit-date-link" id="editDateBtn">изменить</div>
+    </div>
+    <div class="toggle-switch">
+        <div class="toggle-option active" data-toggle="agency">Что делает агентство</div>
+        <div class="toggle-option" data-toggle="tasks">Мои задачи</div>
+    </div>
+    <div class="switch-container">
+        <div id="agencyBlock" class="card switch-pane">
+            <div class="agency-list">
+                <div class="agency-item"><div class="agency-check" data-task="venue"></div><div class="agency-title">Подбор и бронирование площадки</div><div class="agency-status">в работе</div></div>
+                <div class="agency-item"><div class="agency-check" data-task="photographer"></div><div class="agency-title">Подбор фотографа и видеооператора</div><div class="agency-status">в работе</div></div>
+                <div class="agency-item"><div class="agency-check" data-task="budget"></div><div class="agency-title">Согласование сметы и контроль бюджета</div><div class="agency-status">в работе</div></div>
+                <div class="agency-item"><div class="agency-check" data-task="decor"></div><div class="agency-title">Организация декора и флористики</div><div class="agency-status">в работе</div></div>
+                <div class="agency-item"><div class="agency-check" data-task="coordination"></div><div class="agency-title">Координация в день свадьбы</div><div class="agency-status">скоро</div></div>
+            </div>
+        </div>
+        <div id="tasksBlock" class="card switch-pane hidden">
+            <div class="task-list">
+                <div class="task-item"><div class="task-check" data-task="dress"></div><div class="task-title">Выбрать платье</div><div class="task-status">сделано</div></div>
+                <div class="task-item"><div class="task-check" data-task="invitations"></div><div class="task-title">Заказать приглашения</div><div class="task-status">до 20.05</div></div>
+                <div class="task-item"><div class="task-check" data-task="guests_count"></div><div class="task-title">Подтвердить количество гостей</div><div class="task-status">до 01.06</div></div>
+            </div>
+        </div>
+    </div>
+    <div class="card">
+        <div style="font-weight: 600; margin-bottom: 12px;">План взаимодействия</div>
+        <div class="timeline-item"><div class="timeline-date">12 мая</div><div class="timeline-event">Созвон с координатором — обсуждаем декор</div><div class="timeline-badge">подтверждено</div></div>
+        <div class="timeline-item"><div class="timeline-date">20 мая</div><div class="timeline-event">Отправка вариантов флориста</div><div class="timeline-badge">ожидайте</div></div>
+        <div class="timeline-item"><div class="timeline-date">1 июня</div><div class="timeline-event">Встреча с дизайнером пространства</div><div class="timeline-badge">скоро</div></div>
+    </div>
+    <div class="chat-button" id="consultBtn">Задать вопрос координатору</div>
+</div>
+
+<!-- ЭКРАН ЧЕК-ЛИСТА -->
+<div id="checklistScreen" class="screen">
+    <div class="header"><h1 style="font-size: 26px;">Чек-лист</h1><button style="background: var(--accent); width: 36px; height: 36px; border-radius: 10px; color: white;">+</button></div>
+    <div class="category">
+        <div class="category-header"><div><div class="category-title">Площадка</div><div class="category-progress" id="catVenueProgress">0/3</div></div><div class="category-arrow">▼</div></div>
+        <div class="task-list-cat">
+            <div class="task-row"><div class="task-check-cat" data-cat="venue" data-task="choose_venue"></div><div class="task-text-cat">Выбрать площадку</div></div>
+            <div class="task-row"><div class="task-check-cat" data-cat="venue" data-task="sign_contract"></div><div class="task-text-cat">Подписать договор</div></div>
+            <div class="task-row"><div class="task-check-cat" data-cat="venue" data-task="pay_deposit"></div><div class="task-text-cat">Внести аванс</div></div>
+        </div>
+    </div>
+    <div class="category">
+        <div class="category-header"><div><div class="category-title">Подрядчики</div><div class="category-progress" id="catVendorsProgress">0/3</div></div><div class="category-arrow">▼</div></div>
+        <div class="task-list-cat">
+            <div class="task-row"><div class="task-check-cat" data-cat="vendors" data-task="find_photographer"></div><div class="task-text-cat">Найти фотографа</div></div>
+            <div class="task-row"><div class="task-check-cat" data-cat="vendors" data-task="find_host"></div><div class="task-text-cat">Найти ведущего</div></div>
+            <div class="task-row"><div class="task-check-cat" data-cat="vendors" data-task="find_videographer"></div><div class="task-text-cat">Найти видеооператора</div></div>
+        </div>
+    </div>
+</div>
+
+<!-- НИЖНЯЯ ПАНЕЛЬ ВКЛАДОК -->
+<div class="tab-bar">
+    <button class="tab-item active" data-tab="dashboard"><span class="tab-icon">⌂</span><span>Главная</span></button>
+    <button class="tab-item" data-tab="checklist"><span class="tab-icon">☰</span><span>Чек-лист</span></button>
+    <button class="tab-item" data-tab="budget"><span class="tab-icon">$</span><span>Бюджет</span></button>
+    <button class="tab-item" data-tab="guests"><span class="tab-icon">◷</span><span>Гости</span></button>
+</div>
+
+<!-- ПЕРЕКЛЮЧАТЕЛЬ ТЕМ (8 цветов) -->
+<div class="theme-switcher">
+    <div class="theme-dot modern" data-theme="modern"></div>
+    <div class="theme-dot bold" data-theme="bold"></div>
+    <div class="theme-dot festive" data-theme="festive"></div>
+    <div class="theme-dot lavender" data-theme="lavender"></div>
+    <div class="theme-dot forest" data-theme="forest"></div>
+    <div class="theme-dot sunset" data-theme="sunset"></div>
+    <div class="theme-dot ocean" data-theme="ocean"></div>
+    <div class="theme-dot mint" data-theme="mint"></div>
+</div>
+
+<!-- МОДАЛЬНОЕ ОКНО ЗАПИСИ НА КОНСУЛЬТАЦИЮ -->
+<div id="consultModal" class="modal">
+    <div class="modal-content">
+        <h3>Запись на консультацию</h3>
+        <input type="text" id="consultName" placeholder="Ваше имя">
+        <input type="tel" id="consultPhone" placeholder="Номер телефона">
+        <input type="datetime-local" id="consultDatetime">
+        <div class="modal-buttons">
+            <button class="btn-secondary" id="modalClose">Отмена</button>
+            <button class="btn-primary" id="modalSubmit">Отправить</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
